@@ -72,6 +72,8 @@ def getClassList(file):
 def result(socket, img):
     num = CLI.getDataRSP(socket,"93000004",4)
     int_num = int.from_bytes(num, byteorder='little',signed=True)
+    if int_num == 0:
+        return
     data = CLI.getDataRSP(socket, "93000008", 4*6*int_num)
     int_data = []
 
@@ -97,6 +99,7 @@ def result(socket, img):
 
         class_name = getClassList("voc-model-labels.txt")
         cv2.putText(img,class_name[int_data[(i*6)+5]] + score ,position ,cv2.FONT_HERSHEY_PLAIN,1,(0,0,255,128),1)
+        CLI.setDataRSP(socket,"93000004",4,b'\x00\x00\x00\x00')
 
 images = glob.glob('./img/*.jpg')
 print(images)
@@ -141,7 +144,7 @@ for imgname in images:
     result(socket, img_bgr)
     print(imgname)
     cv2.imshow("VideoFrame", img_bgr)
-    cv2.waitKey(1)
+    cv2.waitKey(0)
 
 cv2.waitKey(1000)
 cv2.destroyAllWindows()
