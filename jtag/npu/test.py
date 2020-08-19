@@ -11,6 +11,27 @@ import CLI
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print('Running on device: {}'.format(device))
 
+NPU_DATA_ACT_SIZE  =0x1000000
+NPU_DATA_POST_SIZE =0x550000 #0x550000
+NPU_DATA_INPUT_SIZE=0x50000  #0x50000
+NPU_DATA_OUTPUT_SIZE=0x40000 # 0x20000
+NPU_DATA_FLAG_SIZE= 0x10000  #0x10000
+
+NPU_DATA_BASE  =0x95000000
+NPU_DATA_ACV_BUF =	NPU_DATA_BASE
+NPU_DATA_POST_BUF =	NPU_DATA_ACV_BUF + NPU_DATA_ACT_SIZE
+NPU_DATA_INPUT_BUF = NPU_DATA_POST_BUF + NPU_DATA_POST_SIZE
+NPU_DATA_OUTPUT_BUF= NPU_DATA_INPUT_BUF + NPU_DATA_INPUT_SIZE
+NPU_DATA_FLAG_BUF = NPU_DATA_OUTPUT_BUF + NPU_DATA_OUTPUT_SIZE
+DETECTION_NUM =	NPU_DATA_FLAG_BUF + 4
+DETECTION_DATA = NPU_DATA_FLAG_BUF + 8
+
+
+
+STR_NPU_DATA_INPUT_BUF = str(hex(NPU_DATA_INPUT_BUF))[2:]
+STR_NPU_DATA_FLAG_BUF = str(hex(NPU_DATA_FLAG_BUF))[2:]
+STR_DETECTION_NUM = str(hex(DETECTION_NUM))[2:]
+STR_DETECTION_DATA = str(hex(DETECTION_DATA))[2:]
 
 def convert_rgb_to_iyu2(acts):
     c, h, w = acts.shape
@@ -70,11 +91,11 @@ def getClassList(file):
 
 
 def result(socket, img):
-    num = CLI.getDataRSP(socket,"93000004",4)
+    num = CLI.getDataRSP(socket,STR_DETECTION_NUM,4)
     int_num = int.from_bytes(num, byteorder='little',signed=True)
     if int_num == 0:
         return
-    data = CLI.getDataRSP(socket, "93000008", 4*6*int_num)
+    data = CLI.getDataRSP(socket, STR_DETECTION_DATA, 4*6*int_num)
     int_data = []
 
     for i in range(int_num*6):
@@ -99,7 +120,7 @@ def result(socket, img):
 
         class_name = getClassList("voc-model-labels.txt")
         cv2.putText(img,class_name[int_data[(i*6)+5]] + score ,position ,cv2.FONT_HERSHEY_PLAIN,1,(0,0,255,128),1)
-        CLI.setDataRSP(socket,"93000004",4,b'\x00\x00\x00\x00')
+        CLI.setDataRSP(socket,STR_DETECTION_NUM,4,b'\x00\x00\x00\x00')
 
 images = glob.glob('./img/*.jpg')
 print(images)
@@ -131,20 +152,20 @@ for imgname in images:
 
 
     socket = CLI.NetCon('localhost', 5557)
-    CLI.setDataRSP(socket, "90000000", 304*300*3, new_data)
+    CLI.setDataRSP(socket, STR_NPU_DATA_INPUT_BUF, 304*300*3, new_data)
     flag = b'\x01\x00\x00\x00'
-    CLI.setDataRSP(socket, "93000000", 4, flag);
+    CLI.setDataRSP(socket, STR_NPU_DATA_FLAG_BUF, 4, flag);
 
     while True:
-        flag = CLI.getDataRSP(socket, "93000000", 4)
+        flag = CLI.getDataRSP(socket, STR_NPU_DATA_FLAG_BUF, 4)
         if flag != b'\x01\x00\x00\x00':
             break
-        time.sleep(0.01)
+        time.sleep(0.1)
 
     result(socket, img_bgr)
     print(imgname)
     cv2.imshow("VideoFrame", img_bgr)
-    cv2.waitKey(0)
+    cv2.waitKey(1)
 
 cv2.waitKey(1000)
 cv2.destroyAllWindows()
